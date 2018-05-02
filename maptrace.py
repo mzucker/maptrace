@@ -620,7 +620,7 @@ def get_labels_and_colors(mask, opts):
             color_image = color_image.resize(labels_size, Image.NEAREST)
         color_image = np.array(color_image.convert('RGB'))
         print('assigning colors from {}...'.format(opts.color_image.name))
-        slices = ndimage.measurements.find_objects(labels, num_labels)
+        slices = ndimage.find_objects(labels, num_labels)
         for label, (yslc, xslc) in zip(range(1, num_labels+1), slices):
             print('  coloring label {}/{}'.format(label, num_labels))
             lmask = (labels[yslc,xslc] == label)
@@ -660,7 +660,7 @@ def get_labels_and_colors(mask, opts):
 
     start = datetime.now()
     printp('finding objects... ')
-    slices = ndimage.measurements.find_objects(labels, num_labels)
+    slices = ndimage.find_objects(labels, num_labels)
     elapsed = (datetime.now() - start).total_seconds()
     print('found all objects in {} seconds'.format(elapsed))
 
