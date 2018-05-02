@@ -2,8 +2,7 @@
 
 Produce watertight polygonal vector maps by tracing raster images.
 
-  - DO NOT USE THIS TOOL ON ALREADY-GEOREFERENCED DATA (the output is
-    not georeferenced)
+  - THIS IS NOT A GIS TOOL (the output is not georeferenced)
 
   - DO NOT USE THIS TOOL TO CIRCUMVENT COPYRIGHT RESTRICTIONS ON
     EXISTING MAPS (you will be judged in the next life)
@@ -15,6 +14,13 @@ On the other hand, it might come in handy to generate crisp display
 images for presentations/articles from raster images you created
 yourself.
 
+## Requirements
+
+ - Python 2 or 3
+ - Numpy 1.10 or higher
+ - Scipy 0.17 or higher
+ - Pillow
+
 ## Image copyrights
 
 The files in the [`images`](/images) directory are licensed as follows:
@@ -25,7 +31,7 @@ The files in the [`images`](/images) directory are licensed as follows:
  
  - [`birds-head.png`](images/birds-head.png) adapted by E. Gasser from an unpublished map by [sil.org](https://www.sil.org/), all rights reserved
 
-Maps created by `maptrace.py` from these input images (including the respective outputs in the `examples` directory) shall be considered derived works for the purposes of the licenses of each image.
+Maps created by `maptrace.py` from these input images (including the respective outputs in the `examples` directory) shall be considered derived works for copyright purposes.
 
 ## Examples
 
