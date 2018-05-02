@@ -15,16 +15,6 @@ On the other hand, it might come in handy to generate crisp display
 images for presentations/articles from raster images you created
 yourself.
 
-## Examples
-
-The images in the [`examples`](/examples) directory were created by running the following commands:
-
-    python maptrace.py -c images/pa-2012-pres.png -f open:cross,1 -n2
-    python maptrace.py images/pa-counties.png -m 1000 -e1.42 -n4 -b4
-    python maptrace.py -c images/birds-head.png -C8 -m40 -n8 -q5 -s8 -b16 -f dilate:box,2 
-
-(The last command might take a few minutes.)
-
 ## Image copyrights
 
 The files in the [`images`](/images) directory are licensed as follows:
@@ -36,6 +26,16 @@ The files in the [`images`](/images) directory are licensed as follows:
  - [`birds-head.png`](images/birds-head.png) adapted by E. Gasser from an unpublished map by [sil.org](https://www.sil.org/), all rights reserved
 
 Maps created by `maptrace.py` from these input images (including the respective outputs in the `examples` directory) shall be considered derived works for the purposes of the licenses of each image.
+
+## Examples
+
+The images in the [`examples`](/examples) directory were created by running the following commands:
+
+    python maptrace.py -c images/pa-2012-pres.png -f open:cross,1 -n2
+    python maptrace.py images/pa-counties.png -m 1000 -e1.42 -n4 -b4
+    python maptrace.py -c images/birds-head.png -C8 -m40 -n8 -q5 -s8 -b16 -f dilate:box,2
+
+(The last command might take a few minutes.)
 
 ## Software license
 
