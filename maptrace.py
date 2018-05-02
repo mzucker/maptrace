@@ -168,7 +168,7 @@ class BoundaryRepresentation(object):
         if n0 is not None and n1 is not None:
             self.edge_list[edge_idx] = edge[:0]
             self.edge_infolist[edge_idx] = None
-            # TODO: rebuild label lookup later
+            # NB we will rebuild label_lookup after all merges
             return
 
         self.node_edges[nc].add(edge_idx)
@@ -941,6 +941,12 @@ def build_brep(opts, num_labels, labels, slices):
 
 ######################################################################
 
+def num_fmt(n):
+    s = '{:.2f}'.format(n)
+    if '.' in s:
+        s = re.sub(r'\.?0+$', '', s)
+    return s
+
 def output_svg(opts, orig_shape, brep, colors):
 
     with open(opts.output_file, 'w') as svg:
@@ -949,38 +955,64 @@ def output_svg(opts, orig_shape, brep, colors):
                   'xmlns="http://www.w3.org/2000/svg">\n'.
                   format(orig_shape[1], orig_shape[0]))
 
-        for cur_label, contours in brep.label_lookup.iteritems():
-
-            if cur_label == 1:
-                stroke_width = opts.bg_stroke_width
-            else:
-                stroke_width = opts.stroke_width
-
-            svg.write('  <path stroke="black" stroke-width="{}" '.format(
-                stroke_width))
-                      
-            svg.write('fill="#{:02x}{:02x}{:02x}"'.format(
-                *colors[cur_label]))
+        svg.write(' <g stroke="#000" stroke-linejoin="bevel" '
+                  'stroke-width="{}">\n'.format(opts.stroke_width))
             
-            svg.write(' d="')
+        cpacked = pack_rgb(colors.astype(int))
+        cset = set(cpacked)
 
-            for i, contour in enumerate(contours):
+        lsets = []
 
-                for j, (edge_idx, _, step) in enumerate(contour):
+        for c in cset:
+            idx = np.nonzero(cpacked == c)[0]
+            if 1 in idx:
+                lsets.insert(0, idx)
+            else:
+                lsets.append(idx)
 
-                    edge = brep.edge_list[edge_idx][::step]
+        assert 1 in lsets[0]
 
-                    if j == 0:
-                        svg.write('M {} {}'.format(*edge[0]))
+        for lset in lsets:
 
-                    for pt in edge[1:]:
-                        svg.write(' L {} {}'.format(*pt))
+            svg.write('  <g fill="#{:02x}{:02x}{:02x}">\n'.format(
+                *colors[lset[0]]))
 
-                svg.write(' Z')
+            for cur_label in lset:
 
-            svg.write('"/>\n')
+                if cur_label not in brep.label_lookup:
+                    continue
 
-        svg.write('</svg>')
+                contours = brep.label_lookup[cur_label]
+
+                svg.write('   <path d="')
+
+                for i, contour in enumerate(contours):
+
+                    for j, (edge_idx, _, step) in enumerate(contour):
+
+                        edge = brep.edge_list[edge_idx][::step]
+
+                        if j == 0:
+                            pprev = edge[0]
+                            svg.write('M{},{}'.format(*map(num_fmt, pprev)))
+
+                        for pt in edge[1:]:
+                            svg.write('l{},{}'.format(*map(num_fmt, pt-pprev)))
+                            pprev = pt
+
+                    svg.write('Z')
+
+                svg.write('"')
+
+                if cur_label == 1 and opts.stroke_width != opts.bg_stroke_width:
+                    svg.write(' stroke-width="{}"'.format(opts.bg_stroke_width))
+
+                svg.write('/>\n')
+
+            svg.write('  </g>\n')
+            
+        svg.write(' </g>\n')
+        svg.write('</svg>\n')
 
     print('wrote', opts.output_file)
     
