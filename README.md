@@ -4,7 +4,7 @@ Produce watertight polygonal vector maps by tracing raster images
 
 ## Examples
 
-The images in the examples directory were created by running the following commands:
+The images in the [`examples`](/examples) directory were created by running the following commands:
 
     python maptrace.py -c images/pa-2012-pres.png -f open:cross,1 -n2
     python maptrace.py images/pa-counties.png -m 1000 -e1.42 -n4 -b4
@@ -14,7 +14,7 @@ The images in the examples directory were created by running the following comma
 
 ## Image copyrights
 
-The files in the `images` directory are licensed as follows:
+The files in the [`images`](/images) directory are licensed as follows:
 
   - [`pa-2012-pres.png`](images/pa-2012-pres.png) [[source]](https://commons.wikimedia.org/wiki/File:Pennsylvania-2012_presidential_election-by_county.PNG), license [CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/deed.en)
   
