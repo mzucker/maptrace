@@ -1,6 +1,19 @@
 # maptrace
 
-Produce watertight polygonal vector maps by tracing raster images
+Produce watertight polygonal vector maps by tracing raster images.
+
+  - DO NOT USE THIS TOOL ON ALREADY-GEOREFERENCED DATA (the output is
+    not georeferenced)
+
+  - DO NOT USE THIS TOOL TO CIRCUMVENT COPYRIGHT RESTRICTIONS ON
+    EXISTING MAPS (you will be judged in the next life)
+  
+  - DO NOT USE THIS TOOL ON MULTI-MEGAPIXEL IMAGES (because `for` loops
+    are really slow in Python)
+    
+On the other hand, it might come in handy to generate crisp display
+images for presentations/articles from raster images you created
+yourself.
 
 ## Examples
 
