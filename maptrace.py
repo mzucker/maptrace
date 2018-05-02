@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 
 from __future__ import print_function
+
 import sys, re, os, argparse, heapq
 from datetime import datetime
 from collections import namedtuple, defaultdict
@@ -198,7 +199,7 @@ class BoundaryRepresentation(object):
 
         node_points = np.array(self.node_list)
 
-        rng = xrange(len(node_points))
+        rng = range(len(node_points))
 
         i, j = np.meshgrid(rng, rng)
         use = i > j
@@ -211,7 +212,7 @@ class BoundaryRepresentation(object):
 
         dists = np.linalg.norm(ni - nj, axis=1)
 
-        heap = zip(dists, i, j)
+        heap = list(zip(dists, i, j))
         heapq.heapify(heap)
         
         retired_nodes = set()
@@ -270,8 +271,8 @@ class BoundaryRepresentation(object):
         # rebuild label lookup
         new_label_lookup = dict()
         
-        for label, contours in self.label_lookup.iteritems():
-            
+        for label, contours in self.label_lookup.items():
+
             new_contours = []
             
             for contour in contours:
@@ -335,7 +336,7 @@ def get_options():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('image', type=argparse.FileType('r'),
+    parser.add_argument('image', type=argparse.FileType('rb'),
                         metavar='IMAGE.png', nargs='?',
                         help='image to approximate')
 
@@ -392,7 +393,7 @@ def get_options():
     parser.add_argument('-m', '--min-area', type=int, metavar='A',
                         default=1, help='minimum region area in pixels')
 
-    parser.add_argument('-c', '--color-image', type=argparse.FileType('r'),
+    parser.add_argument('-c', '--color-image', type=argparse.FileType('rb'),
                         default=None, help='image to supply color for output map')
 
     parser.add_argument('-q', '--color-quantize-bits', type=int,
@@ -409,7 +410,7 @@ def get_options():
             print('error: must provide image filename or set color image with -c')
             sys.exit(1)
         else:
-            opts.image = open(opts.color_image.name, 'r')
+            opts.image = open(opts.color_image.name, 'rb')
 
     basename = os.path.basename(opts.image.name)
     opts.basename, _ = os.path.splitext(basename)
@@ -594,7 +595,7 @@ def get_labels_and_colors(mask, opts):
     idx = np.hstack( ([0], np.argsort(-areas)+1) )
 
     replace = np.zeros_like(idx)
-    replace[idx] = xrange(len(idx))
+    replace[idx] = range(len(idx))
 
     labels = replace[labels]
     areas = areas[idx[1:]-1]
