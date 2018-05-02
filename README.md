@@ -36,3 +36,8 @@ The files in the [`images`](/images) directory are licensed as follows:
  - [`birds-head.png`](images/birds-head.png) adapted by E. Gasser from an unpublished map by [sil.org](https://www.sil.org/), all rights reserved
 
 Maps created by `maptrace.py` from these input images (including the respective outputs in the `examples` directory) shall be considered derived works for the purposes of the licenses of each image.
+
+## Software license
+
+The `maptrace.py` program itself is provided under the [MIT license](/LICENSE).
+
