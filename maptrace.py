@@ -992,14 +992,20 @@ def output_svg(opts, orig_shape, brep, colors):
                     for j, (edge_idx, _, step) in enumerate(contour):
 
                         edge = brep.edge_list[edge_idx][::step]
-
-                        if j == 0:
-                            pprev = edge[0]
-                            svg.write('M{},{}'.format(*map(num_fmt, pprev)))
-
-                        for pt in edge[1:]:
-                            svg.write('l{},{}'.format(*map(num_fmt, pt-pprev)))
-                            pprev = pt
+                        iedge = edge.astype(int)
+                        
+                        if np.all(edge == iedge):
+                            pprev = iedge[0]
+                            if j == 0:
+                                svg.write('M{:d},{:d}'.format(*pprev))
+                            for pt in iedge[1:]:
+                                svg.write('l{:d},{:d}'.format(*(pt-pprev)))
+                                pprev = pt
+                        else:
+                            if j == 0:
+                                svg.write('M{},{}'.format(*map(num_fmt, edge[0])))
+                            for pt in edge[1:]:
+                                svg.write('L{},{}'.format(*map(num_fmt, pt)))
 
                     svg.write('Z')
 
