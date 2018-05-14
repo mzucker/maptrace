@@ -293,6 +293,59 @@ class BoundaryRepresentation(object):
                 print('totally deleted label {}!'.format(label))
             
         self.label_lookup = new_label_lookup
+
+    def save_debug_image(self, opts, orig_shape, colors, name):
+        
+        filename = opts.basename + '_debug_' + name + '.svg'
+        
+        with open(filename, 'w') as svg:
+            
+            svg.write('<svg width="{}" height="{}" '
+                      'xmlns="http://www.w3.org/2000/svg">\n'.
+                      format(orig_shape[1], orig_shape[0]))
+
+            svg.write(' <rect width="100%" height="100%" fill="#eee" />\n')
+
+            for ilabel in range(2):
+
+                if ilabel == 0:
+                    svg.write(' <g stroke-linejoin="miter" stroke-width="4" fill="none">\n')
+                else:
+                    svg.write(' <g stroke-linejoin="miter" stroke-width="4" fill="none" stroke-dasharray="8, 8" >\n')
+
+                for edge, einfo in zip(self.edge_list, self.edge_infolist):
+                    svg.write('  <path d="')
+                    last = np.array([0,0])
+                    for i, pt in enumerate(edge):
+                        pt = pt.astype(int)
+                        if i == 0:
+                            svg.write('M{},{}'.format(pt[0], pt[1]))
+                        else:
+                            diff = pt - last
+                            if diff[1] == 0:
+                                svg.write('h{}'.format(diff[0]))
+                            elif diff[0] == 0:
+                                svg.write('v{}'.format(diff[1]))
+                            else:
+                                svg.write('l{},{}'.format(*diff))
+                        last = pt
+
+                    color = colors[einfo.label0 if ilabel == 0 else einfo.label1]
+                    svg.write('" stroke="#{:02x}{:02x}{:02x}" />\n'.format(*color))
+
+                svg.write(' </g>\n')
+
+            svg.write(' <g stroke="none" fill="#000">\n')
+            for pt in self.node_list:
+                svg.write('  <circle cx="{}" cy="{}" r="4" />\n'.format(*pt))
+            svg.write(' </g>\n')
+
+                
+
+                
+            svg.write('</svg>\n')
+
+        print('wrote', filename)
         
 ######################################################################
 # Input is string, output is pair (string, lambda image -> image)
@@ -327,6 +380,25 @@ def filter_type(fstr):
     f = lambda img: fnmap[operation](img, element, iterations=iterations)
         
     return fstr, f
+
+######################################################################
+# Confirm with [y/n]
+
+def confirm(prompt):
+
+    while True:
+        
+        print(prompt + ' [y/n]: ', end='')
+        sys.stdout.flush()
+
+        choice = raw_input().lower()
+
+        if choice in ['y', 'yes']:
+            return True
+        elif choice in ['n', 'no']:
+            return False
+        else:
+            print('invalid choice')
 
 ######################################################################
 # Parse command-line options, return namespace containing results
@@ -402,6 +474,12 @@ def get_options():
 
     parser.add_argument('-r', '--random-colors', action='store_true',
                         help='color regions randomly')
+
+    parser.add_argument('-R', '--random-seed', type=int,
+                        help='random seed for colors')
+
+    parser.add_argument('-y', '--overwrite', action='store_true',
+                        help='overwrite output')
     
     opts = parser.parse_args()
 
@@ -420,6 +498,11 @@ def get_options():
 
     if opts.output_file is None:
         opts.output_file = opts.basename + '.svg'
+
+    if os.path.exists(opts.output_file) and not opts.overwrite:
+        if not confirm(opts.output_file + ' exists. Overwrite?'):
+            print('will not overwite output, exiting')
+            sys.exit(1)
 
     return opts
     
@@ -635,19 +718,33 @@ def get_labels_and_colors(mask, opts):
                 colors[label] = get_dominant_color(crect[lmask],
                                                    opts.color_quantize_bits)
     elif opts.random_colors:
-        np.random.seed(123453)
+        
+        if opts.random_seed is not None:
+            np.random.seed(opts.random_seed)
+            
         colors = np.random.randint(128, size=(num_labels+1,3),
                                    dtype=np.uint8) + 128
-        colors[0,:] = 0
+        colors[0,:] = 255
 
+    save_debug_image(opts, 'regions', colors[labels])
+        
     printp('running DT... ')
     
     start = datetime.now()
 
-    idx = ndimage.distance_transform_edt(unlabeled,
-                                         return_distances=False,
-                                         return_indices=True)
 
+    result = ndimage.distance_transform_edt(unlabeled,
+                                            return_distances=opts.debug_images,
+                                            return_indices=True)
+
+    if opts.debug_images:
+        dist, idx = result
+        dist /= dist.max()
+        dist = (dist*255).astype(np.uint8)
+        save_debug_image(opts, 'dist', dist)
+    else:
+        idx = result
+    
     elapsed = (datetime.now() - start).total_seconds()
     print('ran DT in {} seconds'.format(elapsed))
     
@@ -675,7 +772,9 @@ def get_labels_and_colors(mask, opts):
 
     assert labels_big.min() == 0 and labels_big.max() == num_labels
     assert len(slices) == num_labels
-        
+
+    save_debug_image(opts, 'regions_expanded', colors[labels_big[1:-1, 1:-1]])
+    
     return num_labels, labels_big, slices_big, colors
     
 ######################################################################
@@ -881,7 +980,7 @@ def simplify(opts, edge):
 
 ######################################################################
 
-def build_brep(opts, num_labels, labels, slices):
+def build_brep(opts, num_labels, labels, slices, colors):
 
     brep = BoundaryRepresentation()
 
@@ -930,14 +1029,26 @@ def build_brep(opts, num_labels, labels, slices):
             # add them to our boundary representation
             brep.add_edges(cur_label, contour_edges)
 
+    if opts.debug_images:
+        orig_shape = (labels.shape[0]-2, labels.shape[1]-2)
+        brep.save_debug_image(opts, orig_shape, colors, 'brep')
+
+    simplified = False
+
     if opts.node_tol > 0:
         print('merging all nodes closer than {} px...'.format(opts.node_tol))
         brep.merge_nodes(opts.node_tol)
+        simplified = True
 
     if opts.edge_tol > 0:
         print('simplifying edges...')
         brep.edge_list = [ simplify(opts, edge) for edge in brep.edge_list ]
+        simplified = True
 
+    if opts.debug_images and simplified:
+        orig_shape = (labels.shape[0]-2, labels.shape[1]-2)
+        brep.save_debug_image(opts, orig_shape, colors, 'brep_simplified')
+        
     return brep
 
 ######################################################################
@@ -1045,9 +1156,7 @@ def main():
     # each non-zero label.
     num_labels, labels, slices, colors = get_labels_and_colors(mask, opts)
 
-    save_debug_image(opts, 'regions', colors[labels])
-
-    brep = build_brep(opts, num_labels, labels, slices)
+    brep = build_brep(opts, num_labels, labels, slices, colors)
 
     output_svg(opts, mask.shape, brep, colors)
         
