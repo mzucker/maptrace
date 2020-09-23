@@ -1,7 +1,5 @@
 # -*- encoding: utf-8 -*-
 
-from __future__ import print_function
-
 import sys, re, os, argparse, heapq
 from datetime import datetime
 from collections import namedtuple, defaultdict
@@ -391,7 +389,7 @@ def confirm(prompt):
         print(prompt + ' [y/n]: ', end='')
         sys.stdout.flush()
 
-        choice = raw_input().lower()
+        choice = input().lower()
 
         if choice in ['y', 'yes']:
             return True
@@ -480,6 +478,9 @@ def get_options():
 
     parser.add_argument('-y', '--overwrite', action='store_true',
                         help='overwrite output')
+
+    parser.add_argument('-S', '--solid-colors', action='store_true',
+                        help='input image is solid colors with no outlines')
     
     opts = parser.parse_args()
 
@@ -651,7 +652,7 @@ def printp(*args):
     
 ######################################################################
 
-def get_labels_and_colors(mask, opts):
+def get_labels_and_colors_outlined(mask, opts):
 
     if opts.connectivity == '8':
         structure = BOX_ELEMENT
@@ -766,7 +767,7 @@ def get_labels_and_colors(mask, opts):
 
     for spair in slices:
         spair_big = []
-        for s, dmax in zip(spair, labels.shape):
+        for s in spair:
             spair_big.append(slice(s.start, s.stop+2))
         slices_big.append( tuple(spair_big) )
 
@@ -779,6 +780,93 @@ def get_labels_and_colors(mask, opts):
     
 ######################################################################
 
+def get_labels_and_colors_solid(input_image, opts):
+
+    array = np.array(input_image)
+    print(array.shape, array.dtype)
+
+    if len(array.shape) == 2:
+        flattened = array.flatten()
+        axis = None
+    else:
+        assert len(array.shape) == 3
+        flattened = array.reshape(-1, array.shape[2])
+        axis = 0
+
+    unique, ulabels = np.unique(flattened,
+                                axis=axis,
+                                return_inverse=True)
+
+    ucount = len(unique)
+
+    # go from bright to dark
+    unique = unique[::-1]
+    ulabels = ucount - ulabels - 1
+    ulabels = ulabels.reshape(array.shape[:2])
+
+    print('unique:', unique)
+    print('ulabels:', ulabels)
+
+    rgb = np.array(input_image.convert('RGB'))
+    colors = []
+
+    labels = np.zeros(array.shape[:2], dtype=int)
+    max_label = 0
+
+    slices = []
+
+    for ulabel in range(ucount):
+
+        mask = (ulabels == ulabel)
+
+        yidx, xidx = np.nonzero(mask)
+        color = rgb[yidx[0], xidx[0]]
+
+        if ulabel == 0: # background
+            
+            colors.append(color)
+            
+        else:
+            
+            sublabels, num_features = ndimage.label(mask)
+            
+            print('found {} sublabels for {}'.format(
+                num_features, color))
+
+            subslices = ndimage.find_objects(sublabels,
+                                             num_features)
+
+            labels[mask] = sublabels[mask] + max_label
+            max_label += num_features
+            assert labels.max() == max_label
+
+            slices.extend(subslices)
+            colors.extend([color] * num_features)
+
+    colors = np.array(colors)
+    colors[0,:] = 255
+    
+    randocolors = np.random.randint(128, size=(max_label+1, 3),
+                                    dtype=np.uint8) + 128
+    
+    if opts.random_colors:
+        colors = randocolors
+
+    save_debug_image(opts, 'labels', randocolors[labels])
+
+    slices_big = []
+
+    for spair in slices:
+        spair_big = []
+        for s in spair:
+            spair_big.append(slice(s.start, s.stop+2))
+        slices_big.append( tuple(spair_big) )
+    
+
+    return max_label, labels, slices_big, colors
+
+######################################################################
+
 def follow_contour(l_subrect, cur_label,
                    startpoints, pos):
 
@@ -789,17 +877,18 @@ def follow_contour(l_subrect, cur_label,
 
     while True:
 
+
         ooffs = OPP_OFFSET[cur_dir]
         noffs = NEIGHBOR_OFFSET[cur_dir]
         doffs = DIAG_OFFSET[cur_dir]
 
         neighbor = tuple(pos + noffs)
         diag = tuple(pos + doffs)
-        opp = tuple(pos + ooffs )
+        opp = tuple(pos + ooffs)
 
         assert l_subrect[pos] == cur_label
         assert l_subrect[opp] != cur_label
-
+        
         contour_info.append( pos + (cur_dir, l_subrect[opp]) )
 
         startpoints[pos] = False
@@ -1148,17 +1237,26 @@ def main():
         resample = Image.LANCZOS if opts.zoom > 1 else Image.LANCZOS
         input_image = input_image.resize((wnew, hnew), resample)
         save_debug_image(opts, 'resized', input_image)
-    
-    mask = get_mask(input_image, opts)
 
-    # labels is a 2D array that ranges from 0 (background) to
-    # num_labels (inclusive), and slices are bounding rectangles for
-    # each non-zero label.
-    num_labels, labels, slices, colors = get_labels_and_colors(mask, opts)
+    if not opts.solid_colors:
+    
+        mask = get_mask(input_image, opts)
+
+        # labels is a 2D array that ranges from 0 (background) to
+        # num_labels (inclusive), and slices are bounding rectangles for
+        # each non-zero label.
+        num_labels, labels, slices, colors = get_labels_and_colors_outlined(mask, opts)
+
+    else:
+
+        num_labels, labels, slices, colors = get_labels_and_colors_solid(input_image, opts)
+
+    assert len(slices) == num_labels
+    assert len(colors) == num_labels + 1
 
     brep = build_brep(opts, num_labels, labels, slices, colors)
 
-    output_svg(opts, mask.shape, brep, colors)
+    output_svg(opts, labels.shape, brep, colors)
         
 ######################################################################
 
