@@ -34,8 +34,8 @@ VMAP_OFFSET = np.array([
 DIAG_OFFSET = NEIGHBOR_OFFSET + NEIGHBOR_OFFSET[TURN_LEFT]
 OPP_OFFSET = NEIGHBOR_OFFSET[TURN_LEFT]
 
-CROSS_ELEMENT = np.array([[0,1,0],[1,1,1],[0,1,0]],dtype=np.bool)
-BOX_ELEMENT = np.ones((3,3), dtype=np.bool)
+CROSS_ELEMENT = np.array([[0,1,0],[1,1,1],[0,1,0]],dtype=bool)
+BOX_ELEMENT = np.ones((3,3), dtype=bool)
 
 ######################################################################
 # Some helper classes
@@ -595,7 +595,7 @@ def save_debug_image(opts, name, image):
 
     if isinstance(image, np.ndarray):
 
-        if image.dtype == np.bool:
+        if image.dtype == bool:
             image = (image.astype(np.uint8) * 255)
 
         if len(image.shape) == 2:
