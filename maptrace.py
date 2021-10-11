@@ -866,6 +866,9 @@ def get_labels_and_colors_solid(input_image, opts):
     return max_label, labels, slices_big, colors
 
 ######################################################################
+def within2d(pos, shape):
+    return 0 <= pos[0] and pos[0] < shape[0] \
+       and 0 <= pos[1] and pos[1] < shape[1]
 
 def follow_contour(l_subrect, cur_label,
                    startpoints, pos):
@@ -886,16 +889,21 @@ def follow_contour(l_subrect, cur_label,
         diag = tuple(pos + doffs)
         opp = tuple(pos + ooffs)
 
-        assert l_subrect[pos] == cur_label
-        assert l_subrect[opp] != cur_label
+        subrect_pos = l_subrect[pos]
+        subrect_neighbor = l_subrect[neighbor] if within2d(neighbor, l_subrect.shape) else 0
+        subrect_diag = l_subrect[diag] if within2d(diag, l_subrect.shape) else 0
+        subrect_opp = l_subrect[opp] if within2d(opp, l_subrect.shape) else 0
+
+        assert subrect_pos == cur_label
+        assert subrect_opp != cur_label
         
-        contour_info.append( pos + (cur_dir, l_subrect[opp]) )
+        contour_info.append( pos + (cur_dir, subrect_opp) )
 
         startpoints[pos] = False
 
-        if l_subrect[neighbor] != cur_label:
+        if subrect_neighbor != cur_label:
             cur_dir = TURN_RIGHT[cur_dir]
-        elif l_subrect[diag] == cur_label:
+        elif subrect_diag == cur_label:
             pos = diag
             cur_dir = TURN_LEFT[cur_dir]
         else:
