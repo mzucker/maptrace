@@ -2,8 +2,10 @@ import sys, re, os, argparse, heapq
 from datetime import datetime
 from collections import namedtuple, defaultdict
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 from scipy import ndimage
+# we need skimage for flood fill for -i option; TODO: consider replacing ndimage if it is more performant?
+import skimage 
 import base64
 from io import BytesIO
 
@@ -474,6 +476,9 @@ def get_options():
                         const=0.5, default=None, type=float, metavar='ALPHA',
                         help='superimpose regions over original image')
 
+    parser.add_argument('-E', '--embed', action='store_true',
+                        help='embed the superimposed image into the SVG')
+
     parser.add_argument('-r', '--random-colors', action='store_true',
                         help='color regions randomly')
 
@@ -483,8 +488,13 @@ def get_options():
     parser.add_argument('-y', '--overwrite', action='store_true',
                         help='overwrite output')
 
-    parser.add_argument('-S', '--solid-colors', action='store_true',
-                        help='input image is solid colors with no outlines')
+    group = parser.add_mutually_exclusive_group()
+
+    group.add_argument('-S', '--solid-colors', action='store_true',
+                       help='input image is solid colors with no outlines')
+
+    group.add_argument('-i', '--isolate_center', action='store_true',
+                       help='isolate the largest contiguous area in the center')
     
     opts = parser.parse_args()
 
@@ -615,6 +625,61 @@ def save_debug_image(opts, name, image):
     print('wrote', filename)
 
 ######################################################################
+# Isolate the largest contiguous blob of black pixels
+
+def isolate_center(mask, opts):
+
+    if opts.connectivity == '8':
+        structure = BOX_ELEMENT
+    else:
+        structure = CROSS_ELEMENT
+
+    labels, num_labels = ndimage.label(~mask, structure=structure)
+
+    assert labels.max() == num_labels
+    
+    colors = np.random.randint(128, size=(num_labels+1,3),
+                               dtype=np.uint8) + 128
+
+    colors[0,:] = 255
+
+
+    label_areas, bins = np.histogram(labels.flatten(),
+                                     bins=num_labels,
+                                     range=(1, num_labels+1))
+
+    target_label = label_areas.argmax()
+
+    print(f'biggest area is label {target_label} with area {label_areas[target_label]}')
+
+    target_mask = (labels == target_label + 1)
+
+    save_debug_image(opts, 'isolate_target', target_mask)
+
+    h, w = target_mask.shape
+
+    fill_me = np.ones((h+2, w+2), dtype=np.uint8)
+    fill_me_interior = fill_me[1:-1, 1:-1]
+    fill_me_interior[target_mask] = 2
+
+    # TODO: experiment with flipping this
+    if opts.connectivity == 4:
+        connectivity = 1
+    else:
+        connectivity = 2
+
+    skimage.morphology.flood_fill(fill_me, (0, 0), 0, 
+                                  connectivity=connectivity, in_place=True)
+
+    # new mask is 1's everywhere EXCEPT
+    #  - pixels that are 0 in orig mask and nonzero
+    new_mask = mask | (fill_me_interior == 0)
+
+    save_debug_image(opts, 'isolated', new_mask)
+
+    return new_mask
+
+######################################################################
 # Open an input image and get the RGB colors as well as the mask
 
 def get_mask(input_image, opts):
@@ -645,6 +710,9 @@ def get_mask(input_image, opts):
         print('applying filter:', opts.filter[0])
         mask = opts.filter[1](mask)
         save_debug_image(opts, 'mask_filtered', mask)
+
+    if opts.isolate_center:
+        mask = isolate_center(mask, opts)
 
     return mask
 
@@ -1177,28 +1245,16 @@ def output_svg(opts, orig_shape, brep, colors):
             elif opts.random_colors:
                 scolor = '#f00'# '#dfa'
 
-            # TODO: handle relative paths correctly? 
-            # TODO: if absolute path, url encode as file:/// url
-            #import pathlib
-            #pathlib.Path(absolute_path_string).as_uri()
-
-            
-
-            #href = opts.image.name
-
-            #raw = open(opts.image.name, 'rb').read()
-
-            img = Image.open(opts.image.name).convert('P')
-            temp = BytesIO()
-            
-            img.save(temp, format='png')
-            
-
-            data = base64.b64encode(temp.getvalue()).decode()
-
-            href = f'data:image/png;base64,{data}'
-
-
+            if opts.embed:
+                img = Image.open(opts.image.name).convert('P')
+                temp = BytesIO()
+                img.save(temp, format='png')
+                data = base64.b64encode(temp.getvalue()).decode()
+                href = f'data:image/png;base64,{data}'
+            else:
+                # Note: this will fail if image path is absolute and
+                # on different drive
+                href = os.path.relpath(opts.image.name)
 
             svg.write('<g>\n')
             svg.write('  <image href="{}" width="{}" height="{}"/>\n'.format(
@@ -1281,11 +1337,19 @@ def output_svg(opts, orig_shape, brep, colors):
     
 ######################################################################
 
+
 def main():
 
     opts = get_options()
 
     input_image = Image.open(opts.image)
+
+    exif = input_image.getexif()
+
+    # handle orientation issues
+    if 0x0112 in exif:
+        input_image = ImageOps.exif_transpose(input_image)
+
     if opts.zoom != 1:
         w, h = input_image.size
         wnew = int(round(w*opts.zoom))
