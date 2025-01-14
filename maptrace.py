@@ -1,11 +1,11 @@
-# -*- encoding: utf-8 -*-
-
 import sys, re, os, argparse, heapq
 from datetime import datetime
 from collections import namedtuple, defaultdict
 import numpy as np
 from PIL import Image
 from scipy import ndimage
+import base64
+from io import BytesIO
 
 ######################################################################
 
@@ -34,8 +34,8 @@ VMAP_OFFSET = np.array([
 DIAG_OFFSET = NEIGHBOR_OFFSET + NEIGHBOR_OFFSET[TURN_LEFT]
 OPP_OFFSET = NEIGHBOR_OFFSET[TURN_LEFT]
 
-CROSS_ELEMENT = np.array([[0,1,0],[1,1,1],[0,1,0]],dtype=np.bool)
-BOX_ELEMENT = np.ones((3,3), dtype=np.bool)
+CROSS_ELEMENT = np.array([[0,1,0],[1,1,1],[0,1,0]],dtype=bool)
+BOX_ELEMENT = np.ones((3,3), dtype=bool)
 
 ######################################################################
 # Some helper classes
@@ -470,6 +470,10 @@ def get_options():
                         default=8, help='quantization for finding region '
                         'colors with -c')
 
+    parser.add_argument('-u', '--superimpose', nargs='?', 
+                        const=0.5, default=None, type=float, metavar='ALPHA',
+                        help='superimpose regions over original image')
+
     parser.add_argument('-r', '--random-colors', action='store_true',
                         help='color regions randomly')
 
@@ -595,7 +599,7 @@ def save_debug_image(opts, name, image):
 
     if isinstance(image, np.ndarray):
 
-        if image.dtype == np.bool:
+        if image.dtype == bool:
             image = (image.astype(np.uint8) * 255)
 
         if len(image.shape) == 2:
@@ -695,6 +699,7 @@ def get_labels_and_colors_outlined(mask, opts):
         unlabeled = unlabeled | kill_mask
         print('killed {} labels, now at {} total'.format(
             len(kill_labels), num_labels))
+        labels[kill_mask] = 0
 
     colors = 255*np.ones((num_labels+1,3), dtype=np.uint8)
     
@@ -727,6 +732,12 @@ def get_labels_and_colors_outlined(mask, opts):
                                    dtype=np.uint8) + 128
         colors[0,:] = 255
 
+    print('num_labels is', num_labels)
+
+    print('colors is', colors.shape)
+    print('labels is', labels.shape, 'with range', labels.min(), labels.max())
+
+    # TODO: enforce random colors if colors all white
     save_debug_image(opts, 'regions', colors[labels])
         
     printp('running DT... ')
@@ -774,6 +785,7 @@ def get_labels_and_colors_outlined(mask, opts):
     assert labels_big.min() == 0 and labels_big.max() == num_labels
     assert len(slices) == num_labels
 
+    # TODO: enforce random colors if colors all white
     save_debug_image(opts, 'regions_expanded', colors[labels_big[1:-1, 1:-1]])
     
     return num_labels, labels_big, slices_big, colors
@@ -1156,8 +1168,46 @@ def output_svg(opts, orig_shape, brep, colors):
                   'xmlns="http://www.w3.org/2000/svg">\n'.
                   format(orig_shape[1], orig_shape[0]))
 
-        svg.write(' <g stroke="#000" stroke-linejoin="bevel" '
-                  'stroke-width="{}">\n'.format(opts.stroke_width))
+        scolor = '#000'
+        dash = ''
+
+        if opts.superimpose:
+            if not opts.random_colors and not opts.color_image:
+                scolor = '#f00'
+            elif opts.random_colors:
+                scolor = '#f00'# '#dfa'
+
+            # TODO: handle relative paths correctly? 
+            # TODO: if absolute path, url encode as file:/// url
+            #import pathlib
+            #pathlib.Path(absolute_path_string).as_uri()
+
+            
+
+            #href = opts.image.name
+
+            #raw = open(opts.image.name, 'rb').read()
+
+            img = Image.open(opts.image.name).convert('P')
+            temp = BytesIO()
+            
+            img.save(temp, format='png')
+            
+
+            data = base64.b64encode(temp.getvalue()).decode()
+
+            href = f'data:image/png;base64,{data}'
+
+
+
+            svg.write('<g>\n')
+            svg.write('  <image href="{}" width="{}" height="{}"/>\n'.format(
+                href, orig_shape[1]-2, orig_shape[0]-2))
+            svg.write('</g>\n')
+                
+
+        svg.write(' <g stroke="{}" stroke-linejoin="bevel" '
+                  'stroke-width="{}">\n'.format(scolor, opts.stroke_width))
             
         cpacked = pack_rgb(colors.astype(int))
         cset = set(cpacked)
@@ -1173,10 +1223,16 @@ def output_svg(opts, orig_shape, brep, colors):
 
         assert 1 in lsets[0]
 
+        alpha = ''
+        
+        if opts.superimpose:
+            alpha = '{:02x}'.format(np.clip(opts.superimpose*255, 0, 255).astype(int))
+
         for lset in lsets:
 
-            svg.write('  <g fill="#{:02x}{:02x}{:02x}">\n'.format(
-                *colors[lset[0]]))
+
+            svg.write('  <g fill="#{:02x}{:02x}{:02x}{}">\n'.format(
+                *colors[lset[0]], alpha))
 
             for cur_label in lset:
 
