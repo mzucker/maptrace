@@ -1,13 +1,14 @@
 import sys, re, os, argparse, heapq
 from datetime import datetime
 from collections import namedtuple, defaultdict
+from io import BytesIO
+import base64
+
 import numpy as np
 from PIL import Image, ImageOps
 from scipy import ndimage
 # we need skimage for flood fill for -i option; TODO: consider replacing ndimage if it is more performant?
 import skimage 
-import base64
-from io import BytesIO
 
 ######################################################################
 
@@ -1246,11 +1247,15 @@ def output_svg(opts, orig_shape, brep, colors):
                 scolor = '#f00'# '#dfa'
 
             if opts.embed:
-                img = Image.open(opts.image.name).convert('P')
+                img = Image.open(opts.image.name)
+                exif = img.getexif()
+                # handle orientation issues
+                if 0x0112 in exif:
+                    img = ImageOps.exif_transpose(img)
                 temp = BytesIO()
-                img.save(temp, format='png')
+                img.save(temp, format='jpeg', quality=30)
                 data = base64.b64encode(temp.getvalue()).decode()
-                href = f'data:image/png;base64,{data}'
+                href = f'data:image/jpeg;base64,{data}'
             else:
                 # Note: this will fail if image path is absolute and
                 # on different drive
