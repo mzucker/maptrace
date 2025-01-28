@@ -16,10 +16,11 @@ yourself.
 
 ## Requirements
 
- - Python 2 or 3
- - Numpy 1.10 or higher
- - Scipy 0.17 or higher
- - Pillow
+ - Python 3
+ - Pillow 8.3.1 or higher
+ - Numpy 1.24 or higher
+ - Scipy 1.9 or higher
+ - Scikit-image 0.19.0 or higher
 
 ## Image copyrights
 
