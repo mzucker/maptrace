@@ -493,7 +493,7 @@ def get_options():
     group.add_argument('-S', '--solid-colors', action='store_true',
                        help='input image is solid colors with no outlines')
 
-    group.add_argument('-i', '--isolate_center', action='store_true',
+    group.add_argument('-i', '--isolate-center', action='store_true',
                        help='isolate the largest contiguous area in the center')
     
     opts = parser.parse_args()
